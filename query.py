@@ -5,13 +5,12 @@ import nltk
 
 class QueryProcessor:
 
-    def __init__(self, documents, index_dictionary, tfidf_enabled = False):
+    def __init__(self, documents, index_dictionary):
         self.documents = documents
         self.index_dictionary = index_dictionary
         self.attributes_list = []
         for key in self.index_dictionary:
             self.attributes_list.append(key)
-        self.tfidf_enabled = tfidf_enabled
         self.__process_documents()
 
     def __process_documents(self):
@@ -32,7 +31,7 @@ class QueryProcessor:
         st = [stemmer.stem(t) for t in st if t not in dictionary]
         return st
 
-    def simple_search(self, query):
+    def simple_search(self, query, tfidf_enabled = False):
         query = QueryProcessor.clean_string(query)
         documents_to_get = []
         for attr in self.attributes_list:
@@ -40,19 +39,19 @@ class QueryProcessor:
                 comp = attr + '.' + q
                 if comp in self.index_dictionary[attr]:
                     documents_to_get += self.index_dictionary[attr][comp]
-        documents_to_get = np.unique([doc[1] for doc in documents_to_get])
+        list_of_documents = np.unique([doc[0] for doc in documents_to_get])
         a = []
         results = []
         for q in query:
             a.append(1)
-        for i in documents_to_get:
+        for i in list_of_documents:
             aux = []
             for attr in self.attributes_list:
                 aux += self.documents[i][attr]
             b = []
             for q in query:
                 # TODO
-                if self.tfidf_enabled:
+                if tfidf_enabled:
                     pass
                 else:
                     b.append(1 if q in aux else 0)
@@ -62,7 +61,7 @@ class QueryProcessor:
         results = [i[1] for i in results]
         return results
 
-    def advanced_search(self, query):
+    def advanced_search(self, query, tfidf_enabled):
         for attr in self.attributes_list:
             if attr in query:
                 query[attr] = self.clean_string(query[attr])
@@ -71,20 +70,22 @@ class QueryProcessor:
             for q in query[key]:
                 comp = key + '.' + q
                 if comp in self.index_dictionary[key]:
-                    documents_to_get += self.index_dictionary[key][comp]
-        documents_to_get = np.unique([doc[1] for doc in documents_to_get])
+                    documents_to_get += list(self.index_dictionary[key][comp])
+        documents_to_get = np.unique(documents_to_get)
         a = []
         results = []
         for key in query:
             for q in query[key]:
                 a.append(1)
         for i in documents_to_get:
+            i = int(i)
             b = []
             for key in query:
                 for q in query[key]:
-                    # TODO
-                    if self.tfidf_enabled:
-                        pass
+                    if tfidf_enabled:
+                        comp = key + '.' + q
+                        aux = (0 if i not in self.index_dictionary[key][comp] else self.index_dictionary[key][comp][i]) * np.log10(len(self.documents)/len(self.index_dictionary[key][comp]))
+                        b.append(aux)
                     else:
                         b.append(1 if q in self.documents[i][key] else 0)
             ret = np.dot(a, b)/(np.linalg.norm(a)*np.linalg.norm(b))
